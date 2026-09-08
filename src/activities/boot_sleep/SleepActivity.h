@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <string>
 
 #include "activities/Activity.h"
@@ -8,15 +9,21 @@ class HalFile;
 
 class SleepActivity final : public Activity {
  public:
-  explicit SleepActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, bool fromTimeout = false)
-      : Activity("Sleep", renderer, mappedInput), fromTimeout(fromTimeout) {}
+  explicit SleepActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, bool fromTimeout = false,
+                         bool hasBookProgress = false, uint8_t bookProgressPercent = 0)
+      : Activity("Sleep", renderer, mappedInput),
+        fromTimeout(fromTimeout),
+        hasBookProgress(hasBookProgress),
+        bookProgressPercent(bookProgressPercent) {}
   void onEnter() override;
 
  private:
   void renderDefaultSleepScreen() const;
   void renderCustomSleepScreen() const;
   void renderCoverSleepScreen() const;
-  void renderBitmapSleepScreen(const Bitmap& bitmap, bool preserveBackground = false) const;
+  void renderBitmapSleepScreen(const Bitmap& bitmap, bool preserveBackground = false,
+                               bool showBookProgress = false) const;
+  void drawBookProgressOverlay() const;
   bool renderSleepOverlayFile(HalFile& file, const char* pathForLog) const;
   bool renderTransparentOverlayPng(const std::string& path) const;
   bool renderSleepOverlayPath(const std::string& path) const;
@@ -25,4 +32,6 @@ class SleepActivity final : public Activity {
   void renderBlankSleepScreen() const;
 
   bool fromTimeout = false;
+  bool hasBookProgress = false;
+  uint8_t bookProgressPercent = 0;
 };

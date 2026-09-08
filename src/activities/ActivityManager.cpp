@@ -285,7 +285,20 @@ void ActivityManager::goToReader(std::string path, const bool allowFastInitialRe
 }
 
 void ActivityManager::goToSleep(bool fromTimeout) {
-  replaceActivity(std::make_unique<SleepActivity>(renderer, mappedInput, fromTimeout));
+  ScreenshotInfo readerInfo;
+  if (currentActivity) readerInfo = currentActivity->getScreenshotInfo();
+  if (readerInfo.readerType == ScreenshotInfo::ReaderType::None) {
+    for (auto it = stackActivities.rbegin(); it != stackActivities.rend(); ++it) {
+      readerInfo = (*it)->getScreenshotInfo();
+      if (readerInfo.readerType != ScreenshotInfo::ReaderType::None) break;
+    }
+  }
+
+  const bool hasBookProgress = readerInfo.readerType != ScreenshotInfo::ReaderType::None &&
+                               readerInfo.progressPercent >= 0 && readerInfo.progressPercent <= 100;
+  const uint8_t bookProgressPercent = hasBookProgress ? static_cast<uint8_t>(readerInfo.progressPercent) : 0;
+  replaceActivity(std::make_unique<SleepActivity>(renderer, mappedInput, fromTimeout, hasBookProgress,
+                                                  bookProgressPercent));
   loop();  // Important: sleep screen must be rendered immediately, the caller will go to sleep right after this returns
 }
 

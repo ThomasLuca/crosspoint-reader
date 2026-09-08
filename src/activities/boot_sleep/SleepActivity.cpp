@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <limits>
 #include <string>
@@ -609,7 +610,27 @@ void SleepActivity::renderDefaultSleepScreen() const {
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 }
 
-void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool preserveBackground) const {
+void SleepActivity::drawBookProgressOverlay() const {
+  char progressText[5];
+  snprintf(progressText, sizeof(progressText), "%u%%", static_cast<unsigned>(bookProgressPercent));
+
+  int marginTop, marginRight, marginBottom, marginLeft;
+  renderer.getOrientedViewableTRBL(&marginTop, &marginRight, &marginBottom, &marginLeft);
+
+  const int padding = std::max(4, renderer.getLineHeight(SMALL_FONT_ID) / 3);
+  const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, progressText);
+  const int textHeight = renderer.getLineHeight(SMALL_FONT_ID);
+  const int width = textWidth + padding * 2;
+  const int height = textHeight + padding * 2;
+  const int x = std::max(marginLeft, renderer.getScreenWidth() - marginRight - padding - width);
+  const int y = std::max(marginTop, renderer.getScreenHeight() - marginBottom - padding - height);
+
+  renderer.fillRect(x, y, width, height, false);
+  renderer.drawText(SMALL_FONT_ID, x + padding, y + padding, progressText, true, EpdFontFamily::BOLD);
+}
+
+void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool preserveBackground,
+                                            const bool showBookProgress) const {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
   const auto placement = calculateBitmapPlacement(bitmap.getWidth(), bitmap.getHeight(), renderer);
@@ -627,6 +648,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
                                                           CrossPointSettings::SLEEP_SCREEN_COVER_FILTER::NO_FILTER);
 
   renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, cropX, cropY);
+  if (showBookProgress) drawBookProgressOverlay();
 
   if (!preserveBackground &&
       SETTINGS.sleepScreenCoverFilter == CrossPointSettings::SLEEP_SCREEN_COVER_FILTER::INVERTED_BLACK_AND_WHITE) {
@@ -648,12 +670,14 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_LSB);
     renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, cropX, cropY);
+    if (showBookProgress) drawBookProgressOverlay();
     renderer.copyGrayscaleLsbBuffers();
 
     bitmap.rewindToData();
     renderer.clearScreen(0x00);
     renderer.setRenderMode(GfxRenderer::GRAYSCALE_MSB);
     renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, cropX, cropY);
+    if (showBookProgress) drawBookProgressOverlay();
     renderer.copyGrayscaleMsbBuffers();
 
     renderer.displayGrayBuffer();
@@ -818,7 +842,7 @@ void SleepActivity::renderCoverSleepScreen() const {
     Bitmap bitmap(file);
     if (bitmap.parseHeaders() == BmpReaderError::Ok) {
       LOG_DBG("SLP", "Rendering sleep cover: %s", coverBmpPath.c_str());
-      renderBitmapSleepScreen(bitmap);
+      renderBitmapSleepScreen(bitmap, false, hasBookProgress);
       return;
     }
   }
