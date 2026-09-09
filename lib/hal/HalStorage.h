@@ -4,6 +4,7 @@
 #include <common/FsApiConstants.h>  // for oflag_t
 #include <freertos/semphr.h>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -24,6 +25,9 @@ class HalStorage {
   HalStorage();
   bool begin();
   bool ready() const;
+  // Gets total and used bytes for the mounted filesystem. False means the
+  // card is unavailable or usage could not be read.
+  bool storageUsage(uint64_t& totalBytes, uint64_t& usedBytes);
   // Stop the SD card for deep sleep: unmount, stop the SDMMC host, and release
   // the bus pads (no-op on SPI boards). Call only after all file users have
   // stopped; open HalFiles become invalid. A deep-sleep wake resets the MCU and
