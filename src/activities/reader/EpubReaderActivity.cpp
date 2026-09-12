@@ -18,6 +18,7 @@
 #include <limits>
 
 #include "../../util/BookmarkFile.h"
+#include "AboutBookActivity.h"
 #include "BookmarkEntry.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
@@ -768,6 +769,29 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
   };
 
   switch (action) {
+    case EpubReaderMenuActivity::MenuAction::ABOUT_BOOK: {
+      // Release pagination buffers before the cover decoder and metadata UI
+      // run. The saved offset lets the reader reconstruct the same position.
+      {
+        RenderLock lock;
+        if (section) {
+          rememberCurrentContentOffset();
+          cachedSpineIndex = currentSpineIndex;
+          cachedChapterTotalPageCount = section->pageCount;
+          nextPageNumber = section->currentPage;
+        }
+        section.reset();
+      }
+
+      auto about = makeUniqueNoThrow<AboutBookActivity>(renderer, mappedInput, epub);
+      if (!about) {
+        LOG_ERR("ERS", "OOM: AboutBookActivity");
+        openReaderMenu();
+        break;
+      }
+      startActivityForResult(std::move(about), [this](const ActivityResult&) { openReaderMenu(); });
+      break;
+    }
     case EpubReaderMenuActivity::MenuAction::SELECT_CHAPTER: {
       const int spineIdx = currentSpineIndex;
       // Release the section while the chapter list is up (mirrors the

@@ -14,6 +14,9 @@ constexpr char MEDIA_TYPE_NCX[] = "application/x-dtbncx+xml";
 constexpr char MEDIA_TYPE_CSS[] = "text/css";
 constexpr char MEDIA_TYPE_IMAGE_PREFIX[] = "image/";
 constexpr char itemCacheFile[] = "/.items.bin";
+// Descriptions are optional, publisher-controlled metadata. Bound the retained
+// value so a malformed OPF cannot consume the C3 heap before chapter loading.
+constexpr size_t MAX_DESCRIPTION_BYTES = 2048;
 
 bool startsWithImageMediaType(const std::string& mediaType) {
   constexpr size_t prefixLen = sizeof(MEDIA_TYPE_IMAGE_PREFIX) - 1;
@@ -95,6 +98,13 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
   auto* self = static_cast<ContentOpfParser*>(userData);
   (void)atts;
 
+  if (self->state == IN_BOOK_DESCRIPTION) {
+    // Preserve a word boundary for the unusual but valid case where markup is
+    // nested directly inside dc:description rather than entity-escaped.
+    self->descriptionPendingSpace = !self->description.empty();
+    return;
+  }
+
   if (self->state == START && xmlLocalNameEquals(name, "package")) {
     self->state = IN_PACKAGE;
     return;
@@ -120,6 +130,17 @@ void XMLCALL ContentOpfParser::startElement(void* userData, const XML_Char* name
 
   if (self->state == IN_METADATA && xmlLocalNameEquals(name, "language")) {
     self->state = IN_BOOK_LANGUAGE;
+    return;
+  }
+
+  if (self->state == IN_METADATA && xmlLocalNameEquals(name, "description")) {
+    // EPUB permits repeated descriptions. The first is the predictable summary
+    // reading systems expose, and bounding one value avoids unbounded metadata.
+    if (!self->descriptionSeen) {
+      self->descriptionSeen = true;
+      self->description.reserve(MAX_DESCRIPTION_BYTES);
+      self->state = IN_BOOK_DESCRIPTION;
+    }
     return;
   }
 
@@ -356,6 +377,49 @@ void XMLCALL ContentOpfParser::characterData(void* userData, const XML_Char* s, 
     self->language.append(s, len);
     return;
   }
+
+  if (self->state == IN_BOOK_DESCRIPTION) {
+    // OPFs commonly put escaped HTML in dc:description. Expat decodes the XML
+    // entities, so strip those literal tags while compacting whitespace. Copy
+    // complete UTF-8 sequences only; the output remains safely bounded.
+    for (int i = 0; i < len && self->description.size() < MAX_DESCRIPTION_BYTES;) {
+      const unsigned char c = static_cast<unsigned char>(s[i]);
+      if (self->descriptionInTag) {
+        self->descriptionInTag = c != '>';
+        if (!self->descriptionInTag) self->descriptionPendingSpace = true;
+        i++;
+        continue;
+      }
+      if (c == '<') {
+        self->descriptionInTag = true;
+        i++;
+        continue;
+      }
+      if (std::isspace(c)) {
+        self->descriptionPendingSpace = !self->description.empty();
+        i++;
+        continue;
+      }
+
+      size_t codepointBytes = 1;
+      if ((c & 0xE0) == 0xC0)
+        codepointBytes = 2;
+      else if ((c & 0xF0) == 0xE0)
+        codepointBytes = 3;
+      else if ((c & 0xF8) == 0xF0)
+        codepointBytes = 4;
+      if (i + static_cast<int>(codepointBytes) > len ||
+          self->description.size() + codepointBytes + (self->descriptionPendingSpace ? 1 : 0) >
+              MAX_DESCRIPTION_BYTES) {
+        break;
+      }
+      if (self->descriptionPendingSpace) self->description.push_back(' ');
+      self->descriptionPendingSpace = false;
+      self->description.append(s + i, codepointBytes);
+      i += static_cast<int>(codepointBytes);
+    }
+    return;
+  }
 }
 
 void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) {
@@ -392,6 +456,17 @@ void XMLCALL ContentOpfParser::endElement(void* userData, const XML_Char* name) 
 
   if (self->state == IN_BOOK_LANGUAGE && xmlLocalNameEquals(name, "language")) {
     self->state = IN_METADATA;
+    return;
+  }
+
+  if (self->state == IN_BOOK_DESCRIPTION && xmlLocalNameEquals(name, "description")) {
+    while (!self->description.empty() && self->description.back() == ' ') self->description.pop_back();
+    self->state = IN_METADATA;
+    return;
+  }
+
+  if (self->state == IN_BOOK_DESCRIPTION) {
+    self->descriptionPendingSpace = !self->description.empty();
     return;
   }
 
