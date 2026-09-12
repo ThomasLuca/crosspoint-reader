@@ -1,5 +1,6 @@
 #include "BaseTheme.h"
 
+#include <Bitmap.h>
 #include <FreeInkUIGfxRenderer.h>
 #include <GfxRenderer.h>
 #include <HalClock.h>
@@ -133,6 +134,29 @@ void BaseTheme::drawProgressBar(const GfxRenderer& renderer, Rect rect, const si
   // Draw percentage text centered below bar
   const std::string percentText = std::to_string(percent) + "%";
   renderer.drawCenteredText(UI_10_FONT_ID, rect.y + rect.height + 15, percentText.c_str());
+}
+
+bool BaseTheme::drawBookCover(GfxRenderer& renderer, const Rect rect, const char* path) {
+  if (!path || path[0] == '\0' || rect.width <= 0 || rect.height <= 0) return false;
+
+  HalFile file;
+  if (!Storage.openFileForRead("THEME", path, file)) return false;
+
+  Bitmap bitmap(file);
+  if (bitmap.parseHeaders() != BmpReaderError::Ok || bitmap.getWidth() <= 0 || bitmap.getHeight() <= 0) return false;
+
+  int width = rect.width;
+  int height = static_cast<int>((static_cast<int64_t>(bitmap.getHeight()) * width) / bitmap.getWidth());
+  if (height > rect.height) {
+    height = rect.height;
+    width = static_cast<int>((static_cast<int64_t>(bitmap.getWidth()) * height) / bitmap.getHeight());
+  }
+
+  const int x = rect.x + (rect.width - width) / 2;
+  const int y = rect.y + (rect.height - height) / 2;
+  renderer.drawBitmap(bitmap, x, y, width, height);
+  renderer.drawRect(x, y, width, height);
+  return true;
 }
 
 // Centre a button-hint label inside its box. A label that fits is drawn on the

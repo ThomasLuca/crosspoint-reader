@@ -41,6 +41,7 @@ void EpubReaderMenuActivity::buildMenuItems(std::vector<MenuItem>& items, bool h
   items.clear();
   items.reserve(MAX_MENU_ITEMS);
   items.push_back({MenuAction::SELECT_CHAPTER, StrId::STR_SELECT_CHAPTER});
+  items.push_back({MenuAction::ABOUT_BOOK, StrId::STR_ABOUT_THIS_BOOK});
   if (hasFootnotes) {
     items.push_back({MenuAction::FOOTNOTES, StrId::STR_FOOTNOTES});
   }

@@ -6,7 +6,7 @@ All POD fields are written in the ESP32 little-endian representation used by
 
 ## `book.bin`
 
-### Version 10
+### Version 11
 
 `book.bin` stores EPUB metadata plus lookup tables for spine and TOC entries.
 The current firmware writes this version from `BookMetadataCache`.
@@ -18,7 +18,7 @@ import std.mem;
 import std.string;
 import std.core;
 
-#define EXPECTED_VERSION 10
+#define EXPECTED_VERSION 11
 #define MAX_STRING_LENGTH 65535
 
 struct String {
@@ -37,6 +37,7 @@ struct Metadata {
     String title [[comment("Book title")]];
     String author [[comment("Book author")]];
     String language [[comment("Book language code")]];
+    String description [[comment("Bounded plain-text book description")]];
     String coverItemHref [[comment("Path to cover image")]];
     String textReferenceHref [[comment("Path to guided first text reference")]];
 };

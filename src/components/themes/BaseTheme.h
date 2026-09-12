@@ -221,6 +221,9 @@ class BaseTheme {
 
   // Component drawing methods
   static void drawProgressBar(const GfxRenderer& renderer, Rect rect, size_t current, size_t total);
+  // Draws a cached BMP aspect-fitted inside rect. Returns false when the file
+  // is missing or invalid so the caller can render its empty-cover state.
+  static bool drawBookCover(GfxRenderer& renderer, Rect rect, const char* path);
   void drawBatteryLeft(const GfxRenderer& renderer, Rect rect,
                        bool showPercentage = true) const;  // Left aligned (reader mode)
   virtual void fillBatteryIcon(const GfxRenderer& renderer, Rect rect, uint16_t percentage) const;
